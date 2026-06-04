@@ -78,8 +78,16 @@ func connectDial(network, addr string) (net.Conn, error) {
 				continue
 			}
 
+			// Skip proxies being dialed by another goroutine (avoids burning
+			// N×dialTimeout on the same dead proxy under concurrent load).
+			if _, loaded := dialTracker.LoadOrStore(proxyAddr, struct{}{}); loaded {
+				i-- // retry this slot with a different proxy
+				continue
+			}
+
 			u, err := url.Parse(proxyAddr)
 			if err != nil {
+				dialTracker.Delete(proxyAddr)
 				continue
 			}
 
@@ -90,9 +98,11 @@ func connectDial(network, addr string) (net.Conn, error) {
 			case "socks4", "socks4a", "socks5":
 				conn, err = dialSOCKSProxy(proxyAddr, network, addr, dialTimeout)
 			default:
+				dialTracker.Delete(proxyAddr)
 				continue
 			}
 			attempts++
+			dialTracker.Delete(proxyAddr)
 			if err == nil {
 				if handler.Options.Verbose {
 					log.Infof("%s CONNECT %s -> via %s", "proxy", addr, proxyAddr)
