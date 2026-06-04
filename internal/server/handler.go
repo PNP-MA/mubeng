@@ -2,10 +2,15 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/elazarl/goproxy"
@@ -191,10 +196,14 @@ func (p *Proxy) onRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Reque
 	select {
 	case err := <-errChan:
 		log.Errorf("%s %s %s", req.RemoteAddr, req.Method, err)
-		// Self-healing: remove bad proxy on HTTP request failure
+		// Remove only on hard failures; timeouts/context/EOF are ambiguous
 		if currentProxy != "" && p.Options.ProxyManager != nil {
-			p.Options.ProxyManager.RemoveProxy(currentProxy)
-			log.Warnf("Self-heal: removed bad proxy %s from pool", currentProxy)
+			if isHardError(err) {
+				p.Options.ProxyManager.RemoveProxy(currentProxy)
+				log.Warnf("Self-heal: removed bad proxy %s from pool", currentProxy)
+			} else {
+				log.Debugf("Self-heal: skipped removal for %s (%v)", currentProxy, err)
+			}
 		}
 		return req, goproxy.NewResponse(req, mime, http.StatusBadGateway, "Proxy server error")
 	case resp := <-resChan:
@@ -241,6 +250,39 @@ func (p *Proxy) onResponse(resp *http.Response, ctx *goproxy.ProxyCtx) *http.Res
 	}
 
 	return resp
+}
+
+// isHardError returns true when the error proves the proxy is dead.
+// Ambiguous errors (timeouts, context cancellation, EOF) are excluded:
+// they fire when the client or target is slow, not the proxy.
+// connectDial (E2) independently removes dial-failed proxies.
+func isHardError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return false
+	}
+
+	if _, ok := err.(*url.Error); ok {
+		if strings.Contains(err.Error(), "request canceled") {
+			return false
+		}
+	}
+
+	var ne net.Error
+	if errors.As(err, &ne) {
+		if ne.Timeout() {
+			return false
+		}
+	}
+
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return false
+	}
+
+	return true
 }
 
 // nonProxy handles non-proxy requests
