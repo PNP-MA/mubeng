@@ -67,8 +67,8 @@ func connectDial(network, addr string) (net.Conn, error) {
 
 		// E1: Per-proxy dial timeout — CONNECT should respond in seconds, not 30+
 		dialTimeout := timeout
-		if dialTimeout > 10*time.Second {
-			dialTimeout = 10 * time.Second
+		if dialTimeout > 15*time.Second {
+			dialTimeout = 15 * time.Second
 		}
 
 		attempts := 0
