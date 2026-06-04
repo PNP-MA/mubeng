@@ -29,11 +29,20 @@ func (p *Proxy) onRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Reque
 		logDNS(hostname)
 	}
 
-	// Blacklist check: bypass proxy for matched domains
+	// Blacklist check: try DIRECT first, fall back to proxy pool on failure
 	if p.isBlacklisted(req.URL.Host) {
 		if p.Options.Verbose {
 			log.Infof("%s %s -> DIRECT (blacklisted)", req.RemoteAddr, req.URL)
 		}
+
+		// Buffer request body so we can retry through proxy if DIRECT fails
+		var bodyBuf []byte
+		hadBody := req.Body != nil
+		if hadBody {
+			bodyBuf, _ = ioutil.ReadAll(req.Body)
+			req.Body = ioutil.NopCloser(bytes.NewBuffer(bodyBuf))
+		}
+
 		// Create a direct transport (no upstream proxy)
 		tr := &http.Transport{}
 		tr.DisableKeepAlives = true
@@ -47,21 +56,23 @@ func (p *Proxy) onRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Reque
 		req.RequestURI = ""
 
 		resp, err := direct.Do(req)
-		if err != nil {
-			log.Errorf("%s %s %s", req.RemoteAddr, req.Method, err)
-			return req, goproxy.NewResponse(req, mime, http.StatusBadGateway, "Bad Gateway")
+		if err == nil {
+			buf, readErr := ioutil.ReadAll(resp.Body)
+			resp.Body.Close()
+			if readErr == nil {
+				resp.Body = ioutil.NopCloser(bytes.NewBuffer(buf))
+				log.Debug(req.RemoteAddr, " ", resp.Status)
+				return req, resp
+			}
+			err = readErr
 		}
-		defer resp.Body.Close()
 
-		buf, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			log.Errorf("%s %s", req.RemoteAddr, err)
-			return req, goproxy.NewResponse(req, mime, http.StatusBadGateway, "Bad Gateway")
+		// DIRECT failed — restore body and fall back to proxy pool
+		log.Warnf("%s %s DIRECT failed for blacklisted %s: %s — falling back to proxy pool",
+			req.RemoteAddr, req.Method, req.URL.Host, err)
+		if hadBody {
+			req.Body = ioutil.NopCloser(bytes.NewBuffer(bodyBuf))
 		}
-		resp.Body = ioutil.NopCloser(bytes.NewBuffer(buf))
-
-		log.Debug(req.RemoteAddr, " ", resp.Status)
-		return req, resp
 	}
 
 	// Normal proxy rotation flow

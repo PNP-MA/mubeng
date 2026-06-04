@@ -34,7 +34,7 @@ func (goproxyLogFilter) Printf(format string, v ...interface{}) {
 func connectDial(network, addr string) (net.Conn, error) {
 	timeout := handler.Options.Timeout
 
-	// Blacklist check: dial directly for blacklisted hosts
+	// Blacklist: try DIRECT first, fall back to proxy pool on any failure
 	if handler.isBlacklisted(addr) {
 		if handler.Options.Verbose {
 			hostname := extractHostname(addr)
@@ -42,7 +42,11 @@ func connectDial(network, addr string) (net.Conn, error) {
 			log.Infof("DNS %s -> %s", hostname, strings.Join(ips, ", "))
 			log.Infof("%s CONNECT %s -> DIRECT (blacklisted)", "proxy", addr)
 		}
-		return net.DialTimeout(network, addr, timeout)
+		conn, err := net.DialTimeout(network, addr, timeout)
+		if err == nil {
+			return conn, nil
+		}
+		log.Warnf("DIRECT connection failed for blacklisted %s: %s — falling back to proxy pool", addr, err)
 	}
 
 	if handler.Options == nil || handler.Options.ProxyManager == nil || handler.Options.ProxyManager.Length == 0 {
