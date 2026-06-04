@@ -14,8 +14,52 @@ import (
 	"ktbs.dev/mubeng/pkg/mubeng"
 )
 
+// verifyAuth checks the Proxy-Authorization header against p.Options.Auth.
+// Returns nil when auth passes (or is not configured), or a 407 response
+// when auth is required but missing or invalid.
+func (p *Proxy) verifyAuth(req *http.Request) *http.Response {
+	if p.Options.Auth == "" {
+		return nil
+	}
+
+	auth := req.Header.Get("Proxy-Authorization")
+	if auth == "" {
+		log.Warnf("%s: Missing proxy authorization", req.RemoteAddr)
+		return proxyAuthRequired(req)
+	}
+
+	creds := strings.SplitN(auth, " ", 2)
+	if len(creds) != 2 {
+		log.Warnf("%s: Malformed proxy authorization header", req.RemoteAddr)
+		return proxyAuthRequired(req)
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(creds[1])
+	if err != nil {
+		log.Warnf("%s: Error decoding proxy authorization: %v", req.RemoteAddr, err)
+		return proxyAuthRequired(req)
+	}
+
+	if string(decoded) != p.Options.Auth {
+		log.Errorf("%s: Invalid proxy authorization", req.RemoteAddr)
+		return proxyAuthRequired(req)
+	}
+
+	return nil
+}
+
+func proxyAuthRequired(req *http.Request) *http.Response {
+	resp := goproxy.NewResponse(req, "text/plain", http.StatusProxyAuthRequired, "Proxy Authentication Required")
+	resp.Header.Set("Proxy-Authenticate", `Basic realm="mubeng proxy"`)
+	return resp
+}
+
 // onRequest handles client HTTP request (non-CONNECT).
 func (p *Proxy) onRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
+	if resp := p.verifyAuth(req); resp != nil {
+		return req, resp
+	}
+
 	hostname := extractHostname(req.URL.Host)
 
 	// Enhanced verbose: log every request and DNS lookup
@@ -168,29 +212,10 @@ func (p *Proxy) onConnect(host string, ctx *goproxy.ProxyCtx) (*goproxy.ConnectA
 		logDNS(hostname)
 	}
 
-	// Auth check
-	if p.Options.Auth != "" {
-		auth := ctx.Req.Header.Get("Proxy-Authorization")
-		if auth != "" {
-			creds := strings.SplitN(auth, " ", 2)
-			if len(creds) != 2 {
-				return goproxy.RejectConnect, host
-			}
-
-			auth, err := base64.StdEncoding.DecodeString(creds[1])
-			if err != nil {
-				log.Warnf("%s: Error decoding proxy authorization", ctx.Req.RemoteAddr)
-				return goproxy.RejectConnect, host
-			}
-
-			if string(auth) != p.Options.Auth {
-				log.Errorf("%s: Invalid proxy authorization", ctx.Req.RemoteAddr)
-				return goproxy.RejectConnect, host
-			}
-		} else {
-			log.Warnf("%s: Unathorized proxy request to %s", ctx.Req.RemoteAddr, host)
-			return goproxy.RejectConnect, host
-		}
+	// Auth check — reuse verifyAuth helper (handles empty Auth gracefully)
+	if resp := p.verifyAuth(ctx.Req); resp != nil {
+		ctx.Resp = resp
+		return goproxy.RejectConnect, host
 	}
 
 	// Blacklist check: bypass proxy for matched domains
@@ -207,8 +232,12 @@ func (p *Proxy) onConnect(host string, ctx *goproxy.ProxyCtx) (*goproxy.ConnectA
 
 // onResponse handles backend responses, and removing hop-by-hop headers
 func (p *Proxy) onResponse(resp *http.Response, ctx *goproxy.ProxyCtx) *http.Response {
-	for _, h := range mubeng.HopHeaders {
-		resp.Header.Del(h)
+	// Don't strip hop-by-hop headers from proxy-generated auth responses
+	// (RFC 7235 §3.1 requires Proxy-Authenticate on 407).
+	if resp.StatusCode != http.StatusProxyAuthRequired {
+		for _, h := range mubeng.HopHeaders {
+			resp.Header.Del(h)
+		}
 	}
 
 	return resp

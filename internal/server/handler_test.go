@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/base64"
 	"io/ioutil"
 	"net/http"
 	"sync"
@@ -131,6 +132,168 @@ func TestOnRequestGoroutinePanic(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("onRequest blocked forever — goroutine panic not recovered by select")
 	}
+}
+
+// TestOnRequestAuthMissing verifies that onRequest returns 407 when
+// auth is configured but the request has no Proxy-Authorization header.
+func TestOnRequestAuthMissing(t *testing.T) {
+	rotate = ""
+	ok = 1
+
+	pm := &proxymanager.ProxyManager{
+		Proxies:      []string{"http://127.0.0.1:1"},
+		Length:       1,
+		CurrentIndex: -1,
+	}
+
+	p := &Proxy{
+		Options: &common.Options{
+			Auth:         "user:pass",
+			Sync:         false,
+			Rotate:       1,
+			Method:       "sequent",
+			ProxyManager: pm,
+			Timeout:      100 * time.Millisecond,
+		},
+	}
+
+	req, err := http.NewRequest("GET", "http://example.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := &goproxy.ProxyCtx{}
+
+	_, resp := p.onRequest(req, ctx)
+	if resp == nil {
+		t.Fatal("expected 407 response, got nil")
+	}
+	if resp.StatusCode != http.StatusProxyAuthRequired {
+		t.Fatalf("expected status 407, got %d", resp.StatusCode)
+	}
+	if resp.Header.Get("Proxy-Authenticate") == "" {
+		t.Fatal("expected Proxy-Authenticate header in 407 response")
+	}
+	t.Logf("onRequest returned 407 as expected")
+}
+
+// TestOnRequestAuthInvalid verifies that onRequest returns 407 when
+// the Proxy-Authorization header contains wrong credentials.
+func TestOnRequestAuthInvalid(t *testing.T) {
+	rotate = ""
+	ok = 1
+
+	pm := &proxymanager.ProxyManager{
+		Proxies:      []string{"http://127.0.0.1:1"},
+		Length:       1,
+		CurrentIndex: -1,
+	}
+
+	p := &Proxy{
+		Options: &common.Options{
+			Auth:         "user:pass",
+			Sync:         false,
+			Rotate:       1,
+			Method:       "sequent",
+			ProxyManager: pm,
+			Timeout:      100 * time.Millisecond,
+		},
+	}
+
+	req, err := http.NewRequest("GET", "http://example.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Proxy-Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte("wrong:wrong")))
+	ctx := &goproxy.ProxyCtx{}
+
+	_, resp := p.onRequest(req, ctx)
+	if resp == nil {
+		t.Fatal("expected 407 response, got nil")
+	}
+	if resp.StatusCode != http.StatusProxyAuthRequired {
+		t.Fatalf("expected status 407, got %d", resp.StatusCode)
+	}
+}
+
+// TestOnRequestAuthValid verifies that onRequest proceeds past the auth
+// check when valid credentials are supplied. The request will eventually
+// fail with BadGateway because the upstream proxy is unreachable, but
+// that proves the auth gate was passed.
+func TestOnRequestAuthValid(t *testing.T) {
+	rotate = ""
+	ok = 1
+
+	pm := &proxymanager.ProxyManager{
+		Proxies:      []string{"http://0.0.0.0:1"},
+		Length:       1,
+		CurrentIndex: -1,
+	}
+
+	p := &Proxy{
+		Options: &common.Options{
+			Auth:         "user:pass",
+			Sync:         false,
+			Rotate:       1,
+			Method:       "sequent",
+			ProxyManager: pm,
+			Timeout:      100 * time.Millisecond,
+		},
+	}
+
+	req, err := http.NewRequest("GET", "http://example.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Proxy-Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte("user:pass")))
+	ctx := &goproxy.ProxyCtx{}
+
+	_, resp := p.onRequest(req, ctx)
+	if resp == nil {
+		t.Fatal("expected a response, got nil")
+	}
+	if resp.StatusCode == http.StatusProxyAuthRequired {
+		t.Fatal("auth gate rejected valid credentials")
+	}
+	t.Logf("onRequest returned status %d — auth passed, request routed", resp.StatusCode)
+}
+
+// TestOnRequestAuthDisabled verifies that when no auth is configured,
+// requests proceed without checking for a Proxy-Authorization header.
+func TestOnRequestAuthDisabled(t *testing.T) {
+	rotate = ""
+	ok = 1
+
+	pm := &proxymanager.ProxyManager{
+		Proxies:      []string{"http://0.0.0.0:1"},
+		Length:       1,
+		CurrentIndex: -1,
+	}
+
+	p := &Proxy{
+		Options: &common.Options{
+			Auth:         "",
+			Sync:         false,
+			Rotate:       1,
+			Method:       "sequent",
+			ProxyManager: pm,
+			Timeout:      100 * time.Millisecond,
+		},
+	}
+
+	req, err := http.NewRequest("GET", "http://example.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := &goproxy.ProxyCtx{}
+
+	_, resp := p.onRequest(req, ctx)
+	if resp == nil {
+		t.Fatal("expected a response, got nil")
+	}
+	if resp.StatusCode == http.StatusProxyAuthRequired {
+		t.Fatal("auth check triggered when no auth configured")
+	}
+	t.Logf("onRequest returned status %d — no auth configured, request routed", resp.StatusCode)
 }
 
 // TestOnRequestErrorPath verifies the normal error path when a proxy is
