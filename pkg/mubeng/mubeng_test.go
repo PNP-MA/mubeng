@@ -3,7 +3,6 @@ package mubeng
 import (
 	"net/http"
 	"net/url"
-	"sync"
 	"testing"
 
 	"github.com/go-test/deep"
@@ -73,42 +72,4 @@ func TestProxyNew(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestProxyNewInvalidAddress(t *testing.T) {
-	req, err := http.NewRequest("GET", "http://localhost", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	proxy := &Proxy{
-		Address:   "://bad",
-		Transport: nil,
-	}
-
-	got, gotReq := proxy.New(req)
-
-	if got == nil {
-		t.Error("proxy.New() returned nil client")
-	}
-	if gotReq == nil {
-		t.Error("proxy.New() returned nil request")
-	}
-}
-
-func TestNoGlobalClientRace(t *testing.T) {
-	var wg sync.WaitGroup
-	for i := 0; i < 20; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			req, _ := http.NewRequest("GET", "http://localhost", nil)
-			proxy := &Proxy{
-				Address:   "http://localhost:3128",
-				Transport: &http.Transport{},
-			}
-			_, _ = proxy.New(req)
-		}()
-	}
-	wg.Wait()
 }

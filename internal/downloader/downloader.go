@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -180,23 +179,25 @@ func normalizeProxy(raw string) string {
 		if u.Host == "" {
 			return ""
 		}
-		// Validate host:port using net.SplitHostPort (handles IPv6)
-		if _, _, err := net.SplitHostPort(u.Host); err != nil {
+		// Ensure port is present
+		parts := strings.Split(u.Host, ":")
+		if len(parts) < 2 {
 			return ""
 		}
 		return raw
 	}
 
-	// Bare host:port or user:pass@host:port — prepend http://
-	// Strip auth (user:pass@) if present, then validate host:port
-	hostPort := raw
-	if atIndex := strings.LastIndex(raw, "@"); atIndex >= 0 {
-		hostPort = raw[atIndex+1:]
+	// ip:port format — prepend http://
+	if strings.Contains(raw, ":") {
+		parts := strings.Split(raw, ":")
+		if len(parts) == 2 {
+			return "http://" + raw
+		}
+		// user:pass@ip:port
+		if len(parts) >= 3 {
+			return "http://" + raw
+		}
 	}
 
-	if _, _, err := net.SplitHostPort(hostPort); err != nil {
-		return ""
-	}
-
-	return "http://" + raw
+	return ""
 }

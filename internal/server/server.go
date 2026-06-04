@@ -2,7 +2,6 @@ package server
 
 import (
 	"bufio"
-	"context"
 	"encoding/base64"
 	"fmt"
 	"net"
@@ -34,7 +33,6 @@ func (goproxyLogFilter) Printf(format string, v ...interface{}) {
 
 func connectDial(network, addr string) (net.Conn, error) {
 	timeout := handler.Options.Timeout
-	pm := handler.Options.ProxyManager
 
 	// Blacklist: try DIRECT first, fall back to proxy pool on any failure
 	if handler.isBlacklisted(addr) {
@@ -51,90 +49,40 @@ func connectDial(network, addr string) (net.Conn, error) {
 		log.Warnf("DIRECT connection failed for blacklisted %s: %s — falling back to proxy pool", addr, err)
 	}
 
-	if handler.Options != nil && pm != nil && pm.Len() > 0 {
-		poolSize := pm.Len()
-
-		// E4: Scale max attempts with pool size
-		// Small pools (≤5): try all; Medium (≤20): try 5; Large (>20): try 10
-		maxAttempts := 3
-		switch {
-		case poolSize <= 5:
-			maxAttempts = poolSize
-		case poolSize <= 20:
-			maxAttempts = 5
-		default:
-			maxAttempts = 10
+	if handler.Options != nil && handler.Options.ProxyManager != nil && handler.Options.ProxyManager.Length > 0 {
+		maxAttempts := handler.Options.ProxyManager.Length
+		if maxAttempts > 3 {
+			maxAttempts = 3
 		}
 
-		// E1: Per-proxy dial timeout — CONNECT should respond in seconds, not 30+
-		dialTimeout := timeout
-		if dialTimeout > 10*time.Second {
-			dialTimeout = 10 * time.Second
-		}
-
-		attempts := 0
 		for i := 0; i < maxAttempts; i++ {
-			proxyAddr := pm.RandomProxy()
-			if proxyAddr == "" {
-				continue
-			}
-
-			// Skip proxies being dialed by another goroutine (avoids burning
-			// N×dialTimeout on the same dead proxy under concurrent load).
-			if _, loaded := dialTracker.LoadOrStore(proxyAddr, struct{}{}); loaded {
-				i-- // retry this slot with a different proxy
-				continue
-			}
+			proxyAddr := handler.Options.ProxyManager.RandomProxy()
 
 			u, err := url.Parse(proxyAddr)
 			if err != nil {
-				dialTracker.Delete(proxyAddr)
 				continue
 			}
 
 			var conn net.Conn
 			switch u.Scheme {
 			case "http", "https":
-				conn, err = dialHTTPProxy(u, addr, dialTimeout)
+				conn, err = dialHTTPProxy(u, addr, timeout)
 			case "socks4", "socks4a", "socks5":
-				conn, err = dialSOCKSProxy(proxyAddr, network, addr, dialTimeout)
+				conn, err = dialSOCKSProxy(proxyAddr, network, addr, timeout)
 			default:
-				dialTracker.Delete(proxyAddr)
 				continue
 			}
-			attempts++
-			dialTracker.Delete(proxyAddr)
 			if err == nil {
 				if handler.Options.Verbose {
 					log.Infof("%s CONNECT %s -> via %s", "proxy", addr, proxyAddr)
 				}
-				// Wrap with MonitoredConn to auto-remove bad proxies on transport errors
-				return &MonitoredConn{
-					Conn:      conn,
-					proxyAddr: proxyAddr,
-					onRemove: func(p string) {
-						if pm != nil {
-							pm.RemoveProxy(p)
-							log.Warnf("Self-heal: removed bad proxy %s from pool", p)
-						}
-					},
-				}, nil
-			}
-
-			// E2: Remove proxy from pool on dial failure to avoid retrying dead proxies
-			if pm != nil {
-				pm.RemoveProxy(proxyAddr)
-				log.Warnf("Removed bad proxy %s (dial error: %v)", proxyAddr, err)
+				return conn, nil
 			}
 		}
-
-		// E3: Log pool state on DIRECT fallback
-		log.Warnf("No working proxy for %s — falling back to DIRECT (tried %d proxies, %d remaining in pool)",
-			addr, attempts, pm.Len())
-	} else {
-		log.Warnf("No working proxy for %s — falling back to DIRECT (pool empty)", addr)
 	}
 
+	// All proxies exhausted — fall back to DIRECT
+	log.Warnf("No working proxy for %s — falling back to DIRECT", addr)
 	return net.DialTimeout(network, addr, timeout)
 }
 
@@ -181,34 +129,15 @@ func dialHTTPProxy(u *url.URL, target string, timeout time.Duration) (net.Conn, 
 	return conn, nil
 }
 
-func dialSOCKSProxy(proxyAddr, network, addr string, timeout time.Duration) (net.Conn, error) {
-	type result struct {
-		conn net.Conn
-		err  error
-	}
-	ch := make(chan result, 1)
-	go func() {
-		conn, err := socks.Dial(proxyAddr)(network, addr)
-		ch <- result{conn, err}
-	}()
-	if timeout > 0 {
-		select {
-		case r := <-ch:
-			return r.conn, r.err
-		case <-time.After(timeout):
-			return nil, fmt.Errorf("SOCKS dial timeout after %v", timeout)
-		}
-	} else {
-		r := <-ch
-		return r.conn, r.err
-	}
+func dialSOCKSProxy(proxyAddr, network, addr string, _ time.Duration) (net.Conn, error) {
+	return socks.Dial(proxyAddr)(network, addr)
 }
 
 // Run proxy server with a user defined listener.
 //
 // An active log have 2 receivers, especially stdout and into file if opt.Output isn't empty.
 // Then close the proxy server if it receives a signal that interrupts the program.
-func Run(opt *common.Options) error {
+func Run(opt *common.Options) {
 	cli := logo.NewReceiver(os.Stderr, "")
 	cli.Color = true
 	cli.Level = logo.DEBUG
@@ -228,7 +157,7 @@ func Run(opt *common.Options) error {
 
 	// Load domain blacklist
 	if err := handler.loadBlacklist(opt.Blacklist); err != nil {
-		return err
+		log.Fatal(err)
 	}
 
 	handler.HTTPProxy = goproxy.NewProxyHttpServer()
@@ -249,7 +178,7 @@ func Run(opt *common.Options) error {
 	if opt.Watch {
 		watcher, err := opt.ProxyManager.Watch()
 		if err != nil {
-			return err
+			log.Fatal(err)
 		}
 		defer watcher.Close()
 
@@ -260,18 +189,8 @@ func Run(opt *common.Options) error {
 	signal.Notify(stop, os.Interrupt)
 	go interrupt(stop)
 
-	// Start background pool cleaner
-	if opt.ProxyManager != nil && opt.ProxyManager.Len() > 0 {
-		cleanerCtx, cleanerStop := context.WithCancel(context.Background())
-		defer cleanerStop()
-		cleaner := NewPoolCleaner(opt.ProxyManager, 5*time.Second, 60*time.Second, 10)
-		go cleaner.Run(cleanerCtx)
-	}
-
 	log.Infof("[PID: %d] Starting proxy server on %s", os.Getpid(), opt.Address)
 	if err := server.ListenAndServe(); err != nil {
-		return err
+		log.Fatal(err)
 	}
-
-	return nil
 }

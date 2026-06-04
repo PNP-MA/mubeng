@@ -25,9 +25,6 @@ func Options() *common.Options {
 	flag.BoolVar(&opt.Check, "c", false, "")
 	flag.BoolVar(&opt.Check, "check", false, "")
 
-	flag.IntVar(&opt.Concurrent, "n", 25, "")
-	flag.IntVar(&opt.Concurrent, "concurrent", 25, "")
-
 	flag.StringVar(&opt.CC, "only-cc", "", "")
 
 	flag.DurationVar(&opt.Timeout, "t", 30*time.Second, "")

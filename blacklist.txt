@@ -18,8 +18,8 @@ localhost:9090
 localhost:9095
 
 # Self/intranet
-githubcopilot.com
-.meteor.com
+intranet.example.com
+
 models.dev
 mcp.context7.com
 mcp.exa.ai
@@ -31,5 +31,3 @@ registry.npmjs.org
 .pkg.dev 
 .pypi.org
 .rubygems.org
-.azure.com
-main.vscode-cdn.net

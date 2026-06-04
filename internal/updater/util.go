@@ -3,7 +3,6 @@ package updater
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -42,7 +41,7 @@ func getChanges(tag string) (string, error) {
 
 	resp, err := http.Get("https://api.github.com/repos/kitabisa/mubeng/releases/tags/" + tag)
 	if err != nil {
-		return "", fmt.Errorf("check your internet connection: %w", err)
+		return "", errors.New("check your internet connection")
 	}
 	defer resp.Body.Close()
 

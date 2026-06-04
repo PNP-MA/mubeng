@@ -28,10 +28,9 @@ Options:
     -v, --verbose                    Verbose mode
     -V, --version                    Show current mubeng version
   
-   PROXY CHECKER
-     -c, --check                      Perform proxy check
-     -n, --concurrent <N>             Maximum concurrent checks (default: 25)
-         --only-cc <AA>,<BB>          Only for specific country code (comma separated)
+  PROXY CHECKER
+    -c, --check                      Perform proxy check
+        --only-cc <AA>,<BB>          Only for specific country code (comma separated)
   
    IP ROTATOR
     -a, --address <ADDR>:<PORT>      Run proxy server

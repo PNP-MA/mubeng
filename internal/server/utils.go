@@ -26,25 +26,17 @@ func interrupt(sig chan os.Signal) {
 func watch(w *fsnotify.Watcher) {
 	for {
 		select {
-		case event, ok := <-w.Events:
-			if !ok {
-				return
-			}
+		case event := <-w.Events:
 			if event.Op == 2 {
 				log.Info("Proxy file has changed, reloading...")
 
 				err := handler.Options.ProxyManager.Reload()
 				if err != nil {
-					log.Errorf("Reload failed: %s", err)
-					continue
+					log.Fatal(err)
 				}
 			}
-		case err, ok := <-w.Errors:
-			if !ok {
-				return
-			}
-			log.Errorf("Watcher error: %s", err)
-			continue
+		case err := <-w.Errors:
+			log.Fatal(err)
 		}
 	}
 }
