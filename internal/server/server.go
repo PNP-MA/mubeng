@@ -49,44 +49,41 @@ func connectDial(network, addr string) (net.Conn, error) {
 		log.Warnf("DIRECT connection failed for blacklisted %s: %s — falling back to proxy pool", addr, err)
 	}
 
-	if handler.Options == nil || handler.Options.ProxyManager == nil || handler.Options.ProxyManager.Length == 0 {
-		return nil, fmt.Errorf("no upstream proxies available")
-	}
-
-	maxAttempts := handler.Options.ProxyManager.Length
-	if maxAttempts > 3 {
-		maxAttempts = 3
-	}
-
-	var lastErr error
-	for i := 0; i < maxAttempts; i++ {
-		proxyAddr := handler.Options.ProxyManager.RandomProxy()
-
-		u, err := url.Parse(proxyAddr)
-		if err != nil {
-			lastErr = err
-			continue
+	if handler.Options != nil && handler.Options.ProxyManager != nil && handler.Options.ProxyManager.Length > 0 {
+		maxAttempts := handler.Options.ProxyManager.Length
+		if maxAttempts > 3 {
+			maxAttempts = 3
 		}
 
-		var conn net.Conn
-		switch u.Scheme {
-		case "http", "https":
-			conn, err = dialHTTPProxy(u, addr, timeout)
-		case "socks4", "socks4a", "socks5":
-			conn, err = dialSOCKSProxy(proxyAddr, network, addr, timeout)
-		default:
-			continue
-		}
-		if err == nil {
-			if handler.Options.Verbose {
-				log.Infof("%s CONNECT %s -> via %s", "proxy", addr, proxyAddr)
+		for i := 0; i < maxAttempts; i++ {
+			proxyAddr := handler.Options.ProxyManager.RandomProxy()
+
+			u, err := url.Parse(proxyAddr)
+			if err != nil {
+				continue
 			}
-			return conn, nil
+
+			var conn net.Conn
+			switch u.Scheme {
+			case "http", "https":
+				conn, err = dialHTTPProxy(u, addr, timeout)
+			case "socks4", "socks4a", "socks5":
+				conn, err = dialSOCKSProxy(proxyAddr, network, addr, timeout)
+			default:
+				continue
+			}
+			if err == nil {
+				if handler.Options.Verbose {
+					log.Infof("%s CONNECT %s -> via %s", "proxy", addr, proxyAddr)
+				}
+				return conn, nil
+			}
 		}
-		lastErr = err
 	}
 
-	return nil, fmt.Errorf("all upstream proxies failed: %w", lastErr)
+	// All proxies exhausted — fall back to DIRECT
+	log.Warnf("No working proxy for %s — falling back to DIRECT", addr)
+	return net.DialTimeout(network, addr, timeout)
 }
 
 func dialHTTPProxy(u *url.URL, target string, timeout time.Duration) (net.Conn, error) {
