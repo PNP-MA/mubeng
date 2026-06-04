@@ -14,14 +14,57 @@ import (
 	"ktbs.dev/mubeng/pkg/mubeng"
 )
 
-// onRequest handles client request
+// onRequest handles client HTTP request (non-CONNECT).
 func (p *Proxy) onRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
 	if p.Options.Sync {
 		mutex.Lock()
 		defer mutex.Unlock()
 	}
 
-	// Rotate proxy IP for every AFTER request
+	hostname := extractHostname(req.URL.Host)
+
+	// Enhanced verbose: log every request and DNS lookup
+	if p.Options.Verbose {
+		logVerbose(req.RemoteAddr, req.Method, req.URL.String())
+		logDNS(hostname)
+	}
+
+	// Blacklist check: bypass proxy for matched domains
+	if p.isBlacklisted(req.URL.Host) {
+		if p.Options.Verbose {
+			log.Infof("%s %s -> DIRECT (blacklisted)", req.RemoteAddr, req.URL)
+		}
+		// Create a direct transport (no upstream proxy)
+		tr := &http.Transport{}
+		tr.DisableKeepAlives = true
+
+		direct := &http.Client{Transport: tr, Timeout: p.Options.Timeout}
+		if p.Options.Verbose {
+			direct.Transport = dump.RoundTripper(tr)
+		}
+
+		// http: Request.RequestURI can't be set in client requests.
+		req.RequestURI = ""
+
+		resp, err := direct.Do(req)
+		if err != nil {
+			log.Errorf("%s %s %s", req.RemoteAddr, req.Method, err)
+			return req, goproxy.NewResponse(req, mime, http.StatusBadGateway, "Bad Gateway")
+		}
+		defer resp.Body.Close()
+
+		buf, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			log.Errorf("%s %s", req.RemoteAddr, err)
+			return req, goproxy.NewResponse(req, mime, http.StatusBadGateway, "Bad Gateway")
+		}
+		resp.Body = ioutil.NopCloser(bytes.NewBuffer(buf))
+
+		log.Debug(req.RemoteAddr, " ", resp.Status)
+		return req, resp
+	}
+
+	// Normal proxy rotation flow
 	if (rotate == "") || (ok >= p.Options.Rotate) {
 		if p.Options.Method == "sequent" {
 			rotate = p.Options.ProxyManager.NextProxy()
@@ -48,7 +91,9 @@ func (p *Proxy) onRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Reque
 			return
 		}
 
-		log.Debugf("%s %s %s", req.RemoteAddr, req.Method, req.URL)
+		if p.Options.Verbose {
+			log.Debugf("%s -> %s via %s", req.RemoteAddr, req.URL, rotate)
+		}
 
 		tr, err := mubeng.Transport(rotate)
 		if err != nil {
@@ -87,7 +132,7 @@ func (p *Proxy) onRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Reque
 
 	select {
 	case err := <-errChan:
-		log.Errorf("%s %s", req.RemoteAddr, err)
+		log.Errorf("%s %s %s", req.RemoteAddr, req.Method, err)
 		return req, goproxy.NewResponse(req, mime, http.StatusBadGateway, "Proxy server error")
 	case resp := <-resChan:
 		log.Debug(req.RemoteAddr, " ", resp.Status)
@@ -95,8 +140,16 @@ func (p *Proxy) onRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Reque
 	}
 }
 
-// onConnect handles CONNECT method
+// onConnect handles CONNECT method (HTTPS)
 func (p *Proxy) onConnect(host string, ctx *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
+	// Enhanced verbose: log DNS for CONNECT targets
+	if p.Options.Verbose {
+		hostname := extractHostname(host)
+		logVerbose(ctx.Req.RemoteAddr, "CONNECT", host)
+		logDNS(hostname)
+	}
+
+	// Auth check
 	if p.Options.Auth != "" {
 		auth := ctx.Req.Header.Get("Proxy-Authorization")
 		if auth != "" {
@@ -121,7 +174,16 @@ func (p *Proxy) onConnect(host string, ctx *goproxy.ProxyCtx) (*goproxy.ConnectA
 		}
 	}
 
-	return goproxy.MitmConnect, host
+	// Blacklist check: bypass proxy for matched domains
+	if p.isBlacklisted(host) {
+		if p.Options.Verbose {
+			log.Infof("%s CONNECT %s -> DIRECT (blacklisted)", ctx.Req.RemoteAddr, host)
+		}
+		// Return OkConnect without going through ConnectDial proxy
+		return goproxy.OkConnect, host
+	}
+
+	return goproxy.OkConnect, host
 }
 
 // onResponse handles backend responses, and removing hop-by-hop headers

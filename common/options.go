@@ -15,10 +15,12 @@ type Options struct {
 
 	Address   string
 	Auth      string
+	Blacklist string
 	CC        string
 	Check     bool
 	Countries []string
 	Daemon    bool
+	Download  bool
 	File      string
 	Method    string
 	Output    string

@@ -17,7 +17,7 @@ var (
  ` + Email
   // Usage of mubeng
   Usage = `
-  mubeng [-c|-a :8080] -f file.txt [options...]
+  mubeng [-c|-a :8080|-download] -f file.txt [options...]
 
 Options:
   GENERAL
@@ -32,18 +32,25 @@ Options:
     -c, --check                      Perform proxy check
         --only-cc <AA>,<BB>          Only for specific country code (comma separated)
   
-  IP ROTATOR
+   IP ROTATOR
     -a, --address <ADDR>:<PORT>      Run proxy server
     -A, --auth <USER>:<PASS>         Set authorization for proxy server
+        --blacklist <FILE>           File with domains to bypass proxy (default: blacklist.txt)
     -d, --daemon                     Daemonize proxy server
     -m, --method <METHOD>            Rotation method (sequent/random) (default: sequent)
     -r, --rotate <N>                 Rotate proxy IP after N request (default: 1)
     -s, --sync                       Syncrounus mode
     -w, --watch                      Watch proxy file, live-reload from changes
+  
+  DOWNLOADER
+        --download                   Download proxy lists from URLs in url_proxy.txt
 
 Examples:
   mubeng -f proxies.txt --check --output live.txt
   mubeng -a localhost:8080 -f live.txt -r 10 -w
+  mubeng --download
+  mubeng --download -o proxies.txt
+  mubeng --download -f my_urls.txt -o proxies.txt
 
 `
 )

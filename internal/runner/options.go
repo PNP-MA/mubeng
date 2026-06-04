@@ -54,6 +54,11 @@ func Options() *common.Options {
 	flag.BoolVar(&version, "V", false, "")
 	flag.BoolVar(&version, "version", false, "")
 
+	flag.StringVar(&opt.Blacklist, "", "", "")
+	flag.StringVar(&opt.Blacklist, "blacklist", "", "")
+
+	flag.BoolVar(&opt.Download, "download", false, "")
+
 	flag.BoolVar(&opt.Watch, "w", false, "")
 	flag.BoolVar(&opt.Watch, "watch", false, "")
 

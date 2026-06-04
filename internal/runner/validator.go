@@ -14,18 +14,24 @@ import (
 func validate(opt *common.Options) error {
 	var err error
 
-	if opt.File == "" {
-		return errors.New("no proxy file provided")
-	}
+	if opt.Download {
+		if opt.File == "" {
+			opt.File = "url_proxy.txt"
+		}
+	} else {
+		if opt.File == "" {
+			return errors.New("no proxy file provided")
+		}
 
-	opt.File, err = filepath.Abs(opt.File)
-	if err != nil {
-		return err
-	}
+		opt.File, err = filepath.Abs(opt.File)
+		if err != nil {
+			return err
+		}
 
-	opt.ProxyManager, err = proxymanager.New(opt.File)
-	if err != nil {
-		return err
+		opt.ProxyManager, err = proxymanager.New(opt.File)
+		if err != nil {
+			return err
+		}
 	}
 
 	validMethod := map[string]bool{
@@ -34,6 +40,10 @@ func validate(opt *common.Options) error {
 	}
 
 	if opt.Address != "" && !opt.Check {
+		if opt.Blacklist == "" {
+			opt.Blacklist = "blacklist.txt"
+		}
+
 		if !validMethod[opt.Method] {
 			return errors.New("undefined method for " + opt.Method)
 		}
@@ -50,7 +60,7 @@ func validate(opt *common.Options) error {
 		opt.Countries = strings.Split(opt.CC, ",")
 	}
 
-	if opt.Output != "" {
+	if opt.Output != "" && !opt.Download {
 		opt.Output, err = filepath.Abs(opt.Output)
 		if err != nil {
 			return err
