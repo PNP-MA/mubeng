@@ -33,6 +33,7 @@ func (goproxyLogFilter) Printf(format string, v ...interface{}) {
 
 func connectDial(network, addr string) (net.Conn, error) {
 	timeout := handler.Options.Timeout
+	pm := handler.Options.ProxyManager
 
 	// Blacklist: try DIRECT first, fall back to proxy pool on any failure
 	if handler.isBlacklisted(addr) {
@@ -49,14 +50,33 @@ func connectDial(network, addr string) (net.Conn, error) {
 		log.Warnf("DIRECT connection failed for blacklisted %s: %s — falling back to proxy pool", addr, err)
 	}
 
-	if handler.Options != nil && handler.Options.ProxyManager != nil && handler.Options.ProxyManager.Len() > 0 {
-		maxAttempts := handler.Options.ProxyManager.Len()
-		if maxAttempts > 3 {
-			maxAttempts = 3
+	if handler.Options != nil && pm != nil && pm.Len() > 0 {
+		poolSize := pm.Len()
+
+		// E4: Scale max attempts with pool size
+		// Small pools (≤5): try all; Medium (≤20): try 5; Large (>20): try 10
+		maxAttempts := 3
+		switch {
+		case poolSize <= 5:
+			maxAttempts = poolSize
+		case poolSize <= 20:
+			maxAttempts = 5
+		default:
+			maxAttempts = 10
 		}
 
+		// E1: Per-proxy dial timeout — CONNECT should respond in seconds, not 30+
+		dialTimeout := timeout
+		if dialTimeout > 10*time.Second {
+			dialTimeout = 10 * time.Second
+		}
+
+		attempts := 0
 		for i := 0; i < maxAttempts; i++ {
-			proxyAddr := handler.Options.ProxyManager.RandomProxy()
+			proxyAddr := pm.RandomProxy()
+			if proxyAddr == "" {
+				continue
+			}
 
 			u, err := url.Parse(proxyAddr)
 			if err != nil {
@@ -66,12 +86,13 @@ func connectDial(network, addr string) (net.Conn, error) {
 			var conn net.Conn
 			switch u.Scheme {
 			case "http", "https":
-				conn, err = dialHTTPProxy(u, addr, timeout)
+				conn, err = dialHTTPProxy(u, addr, dialTimeout)
 			case "socks4", "socks4a", "socks5":
-				conn, err = dialSOCKSProxy(proxyAddr, network, addr, timeout)
+				conn, err = dialSOCKSProxy(proxyAddr, network, addr, dialTimeout)
 			default:
 				continue
 			}
+			attempts++
 			if err == nil {
 				if handler.Options.Verbose {
 					log.Infof("%s CONNECT %s -> via %s", "proxy", addr, proxyAddr)
@@ -81,18 +102,28 @@ func connectDial(network, addr string) (net.Conn, error) {
 					Conn:      conn,
 					proxyAddr: proxyAddr,
 					onRemove: func(p string) {
-						if handler.Options.ProxyManager != nil {
-							handler.Options.ProxyManager.RemoveProxy(p)
+						if pm != nil {
+							pm.RemoveProxy(p)
 							log.Warnf("Self-heal: removed bad proxy %s from pool", p)
 						}
 					},
 				}, nil
 			}
+
+			// E2: Remove proxy from pool on dial failure to avoid retrying dead proxies
+			if pm != nil {
+				pm.RemoveProxy(proxyAddr)
+				log.Warnf("Removed bad proxy %s (dial error: %v)", proxyAddr, err)
+			}
 		}
+
+		// E3: Log pool state on DIRECT fallback
+		log.Warnf("No working proxy for %s — falling back to DIRECT (tried %d proxies, %d remaining in pool)",
+			addr, attempts, pm.Len())
+	} else {
+		log.Warnf("No working proxy for %s — falling back to DIRECT (pool empty)", addr)
 	}
 
-	// All proxies exhausted — fall back to DIRECT
-	log.Warnf("No working proxy for %s — falling back to DIRECT", addr)
 	return net.DialTimeout(network, addr, timeout)
 }
 
