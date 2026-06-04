@@ -1,0 +1,33 @@
+# Domains that bypass the proxy and connect DIRECTLY.
+# Useful for local network resources, APIs, or sites that break with upstream proxies.
+# Lines starting with # are comments.
+# Prefix with "." to match all subdomains (e.g. ".local" matches "x.local").
+# ======================================================================
+
+# Local / LAN
+localhost
+127.0.0.1
+.local
+.internal
+.example.com
+
+# Common local services
+localhost:3000
+localhost:8080
+localhost:9090
+localhost:9095
+
+# Self/intranet
+intranet.example.com
+
+models.dev
+mcp.context7.com
+mcp.exa.ai
+mcp.grep.app
+api.github.com
+github.com
+npmjs.com
+registry.npmjs.org
+.pkg.dev 
+.pypi.org
+.rubygems.org

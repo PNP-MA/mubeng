@@ -1,0 +1,148 @@
+# Proxy source URLs for `mubeng --download`
+# Each line is a URL that returns proxylist in protocol://ip:port or ip:port format.
+# Lines starting with # are comments.
+# ======================================================================
+
+# --- thenasty1337/free-proxy-list (multi-protocol) ---
+https://raw.githubusercontent.com/thenasty1337/free-proxy-list/main/data/latest/types/http/proxies.txt
+https://raw.githubusercontent.com/thenasty1337/free-proxy-list/main/data/latest/types/socks4/proxies.txt
+https://raw.githubusercontent.com/thenasty1337/free-proxy-list/main/data/latest/types/socks5/proxies.txt
+
+# --- hw630590/free-proxies (multi-protocol) ---
+https://raw.githubusercontent.com/hw630590/free-proxies/refs/heads/main/proxies/http/http.txt
+https://raw.githubusercontent.com/hw630590/free-proxies/refs/heads/main/proxies/https/https.txt
+https://raw.githubusercontent.com/hw630590/free-proxies/refs/heads/main/proxies/socks4/socks4.txt
+https://raw.githubusercontent.com/hw630590/free-proxies/refs/heads/main/proxies/socks5/socks5.txt
+
+# --- fyvri/fresh-proxy-list (all-in-one) ---
+https://raw.githubusercontent.com/fyvri/fresh-proxy-list/archive/storage/classic/all.txt
+
+# --- BreakingTechFr/Proxy_Free (all-in-one) ---
+https://raw.githubusercontent.com/BreakingTechFr/Proxy_Free/refs/heads/main/proxies/all.txt
+
+# --- jetkai/proxy-list (multi-format, 644 stars) ---
+# HTTP
+https://raw.githubusercontent.com/jetkai/proxy-list/main/online-proxies/txt/proxies-http.txt
+# HTTPS
+https://raw.githubusercontent.com/jetkai/proxy-list/main/online-proxies/txt/proxies-https.txt
+# SOCKS4
+https://raw.githubusercontent.com/jetkai/proxy-list/main/online-proxies/txt/proxies-socks4.txt
+# SOCKS5
+https://raw.githubusercontent.com/jetkai/proxy-list/main/online-proxies/txt/proxies-socks5.txt
+
+# --- TheSpeedX/SOCKS-List (updated daily) ---
+https://raw.githubusercontent.com/TheSpeedX/SOCKS-List/master/http.txt
+https://raw.githubusercontent.com/TheSpeedX/SOCKS-List/master/socks4.txt
+https://raw.githubusercontent.com/TheSpeedX/SOCKS-List/master/socks5.txt
+
+# --- proxifly/free-proxy-list (5K stars, updated every 5 min) ---
+https://cdn.jsdelivr.net/gh/proxifly/free-proxy-list@main/proxies/protocols/http/data.txt
+https://cdn.jsdelivr.net/gh/proxifly/free-proxy-list@main/proxies/protocols/https/data.txt
+https://cdn.jsdelivr.net/gh/proxifly/free-proxy-list@main/proxies/protocols/socks4/data.txt
+https://cdn.jsdelivr.net/gh/proxifly/free-proxy-list@main/proxies/protocols/socks5/data.txt
+
+# --- monosans/proxy-list (1K stars, updated hourly) ---
+https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/http.txt
+https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/socks4.txt
+https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/socks5.txt
+
+# --- ProxyScrape/free-proxy-list (official, 10K+ proxies, updated every 5 min) ---
+https://cdn.jsdelivr.net/gh/proxyscrape/free-proxy-list@main/proxies/protocols/http/data.txt
+https://cdn.jsdelivr.net/gh/proxyscrape/free-proxy-list@main/proxies/protocols/https/data.txt
+https://cdn.jsdelivr.net/gh/proxyscrape/free-proxy-list@main/proxies/protocols/socks4/data.txt
+https://cdn.jsdelivr.net/gh/proxyscrape/free-proxy-list@main/proxies/protocols/socks5/data.txt
+
+# --- clarketm/proxy-list (2K stars, updated daily) ---
+https://raw.githubusercontent.com/clarketm/proxy-list/master/proxy-list-raw.txt
+
+# --- roosterkid/openproxylist (798 stars, updated hourly) ---
+https://raw.githubusercontent.com/roosterkid/openproxylist/main/HTTPS_RAW.txt
+https://raw.githubusercontent.com/roosterkid/openproxylist/main/SOCKS4_RAW.txt
+https://raw.githubusercontent.com/roosterkid/openproxylist/main/SOCKS5_RAW.txt
+
+# --- dpangestuw/Free-Proxy (updated every 5 min) ---
+https://raw.githubusercontent.com/dpangestuw/Free-Proxy/refs/heads/main/http_proxies.txt
+https://raw.githubusercontent.com/dpangestuw/Free-Proxy/refs/heads/main/socks4_proxies.txt
+https://raw.githubusercontent.com/dpangestuw/Free-Proxy/refs/heads/main/socks5_proxies.txt
+
+# --- officialputuid/ProxyForEveryone ---
+https://cdn.jsdelivr.net/gh/officialputuid/ProxyForEveryone@main/http/http.txt
+https://cdn.jsdelivr.net/gh/officialputuid/ProxyForEveryone@main/https/https.txt
+https://cdn.jsdelivr.net/gh/officialputuid/ProxyForEveryone@main/socks4/socks4.txt
+https://cdn.jsdelivr.net/gh/officialputuid/ProxyForEveryone@main/socks5/socks5.txt
+
+# --- vakhov/fresh-proxy-list ---
+https://vakhov.github.io/fresh-proxy-list/http.txt
+https://vakhov.github.io/fresh-proxy-list/https.txt
+https://vakhov.github.io/fresh-proxy-list/socks4.txt
+https://vakhov.github.io/fresh-proxy-list/socks5.txt
+
+# --- Thordata/awesome-free-proxy-list (daily updated) ---
+https://raw.githubusercontent.com/Thordata/awesome-free-proxy-list/main/proxies/http.txt
+https://raw.githubusercontent.com/Thordata/awesome-free-proxy-list/main/proxies/https.txt
+https://raw.githubusercontent.com/Thordata/awesome-free-proxy-list/main/proxies/socks4.txt
+https://raw.githubusercontent.com/Thordata/awesome-free-proxy-list/main/proxies/socks5.txt
+
+# --- VPSLabCloud/VPSLab-Free-Proxy-List (updated every 15 min) ---
+https://raw.githubusercontent.com/VPSLabCloud/VPSLab-Free-Proxy-List/main/http_all.txt
+https://raw.githubusercontent.com/VPSLabCloud/VPSLab-Free-Proxy-List/main/http_ssl.txt
+https://raw.githubusercontent.com/VPSLabCloud/VPSLab-Free-Proxy-List/main/socks4_all.txt
+https://raw.githubusercontent.com/VPSLabCloud/VPSLab-Free-Proxy-List/main/socks5_all.txt
+
+# --- komutan234/Proxy-List-Free (updated every 2 min) ---
+https://raw.githubusercontent.com/komutan234/Proxy-List-Free/main/proxies/http.txt
+https://raw.githubusercontent.com/komutan234/Proxy-List-Free/main/proxies/socks4.txt
+https://raw.githubusercontent.com/komutan234/Proxy-List-Free/main/proxies/socks5.txt
+
+# --- naravid19/checked-proxies (updated hourly) ---
+https://raw.githubusercontent.com/naravid19/checked-proxies/main/http.txt
+https://raw.githubusercontent.com/naravid19/checked-proxies/main/socks4.txt
+https://raw.githubusercontent.com/naravid19/checked-proxies/main/socks5.txt
+
+# --- nguywnben/daily-proxy-updates (updated every 6h) ---
+https://raw.githubusercontent.com/nguywnben/daily-proxy-updates/main/proxies/http.txt
+https://raw.githubusercontent.com/nguywnben/daily-proxy-updates/main/proxies/https.txt
+https://raw.githubusercontent.com/nguywnben/daily-proxy-updates/main/proxies/socks4.txt
+https://raw.githubusercontent.com/nguywnben/daily-proxy-updates/main/proxies/socks5.txt
+
+# --- Mohammedcha/ProxRipper (updated every 15 min) ---
+https://raw.githubusercontent.com/Mohammedcha/ProxRipper/main/http.txt
+https://raw.githubusercontent.com/Mohammedcha/ProxRipper/main/https.txt
+https://raw.githubusercontent.com/Mohammedcha/ProxRipper/main/socks4.txt
+https://raw.githubusercontent.com/Mohammedcha/ProxRipper/main/socks5.txt
+
+# --- dinoz0rg/proxy-list (updated frequently) ---
+https://raw.githubusercontent.com/dinoz0rg/proxy-list/main/checked_proxies/http.txt
+https://raw.githubusercontent.com/dinoz0rg/proxy-list/main/checked_proxies/socks4.txt
+https://raw.githubusercontent.com/dinoz0rg/proxy-list/main/checked_proxies/socks5.txt
+https://raw.githubusercontent.com/dinoz0rg/proxy-list/main/scraped_proxies/http.txt
+https://raw.githubusercontent.com/dinoz0rg/proxy-list/main/scraped_proxies/socks4.txt
+https://raw.githubusercontent.com/dinoz0rg/proxy-list/main/scraped_proxies/socks5.txt
+
+# --- Firmfox/proxify (multi-protocol) ---
+https://raw.githubusercontent.com/Firmfox/proxify/main/proxies/http.txt
+https://raw.githubusercontent.com/Firmfox/proxify/main/proxies/https.txt
+https://raw.githubusercontent.com/Firmfox/proxify/main/proxies/socks4.txt
+https://raw.githubusercontent.com/Firmfox/proxify/main/proxies/socks5.txt
+
+# --- Skillter/ProxyGather ---
+https://raw.githubusercontent.com/Skillter/ProxyGather/refs/heads/master/proxies/working-proxies-http.txt
+https://raw.githubusercontent.com/Skillter/ProxyGather/refs/heads/master/proxies/working-proxies-socks4.txt
+https://raw.githubusercontent.com/Skillter/ProxyGather/refs/heads/master/proxies/working-proxies-socks5.txt
+
+# --- proxygenerator1/ProxyGenerator (deeply verified) ---
+https://raw.githubusercontent.com/proxygenerator1/ProxyGenerator/main/Stable/http.txt
+https://raw.githubusercontent.com/proxygenerator1/ProxyGenerator/main/Stable/https.txt
+https://raw.githubusercontent.com/proxygenerator1/ProxyGenerator/main/Stable/socks4.txt
+https://raw.githubusercontent.com/proxygenerator1/ProxyGenerator/main/Stable/socks5.txt
+
+# --- ProxyScraper/ProxyScraper (updated every 30 min) ---
+https://raw.githubusercontent.com/ProxyScraper/ProxyScraper/main/http.txt
+https://raw.githubusercontent.com/ProxyScraper/ProxyScraper/main/sock4.txt
+https://raw.githubusercontent.com/ProxyScraper/ProxyScraper/main/sock5.txt
+
+# --- iplocate/free-proxy-list (updated every 30 min) ---
+https://raw.githubusercontent.com/iplocate/free-proxy-list/main/proxies/http.txt
+https://raw.githubusercontent.com/iplocate/free-proxy-list/main/proxies/https.txt
+https://raw.githubusercontent.com/iplocate/free-proxy-list/main/proxies/socks4.txt
+https://raw.githubusercontent.com/iplocate/free-proxy-list/main/proxies/socks5.txt

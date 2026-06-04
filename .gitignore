@@ -1,5 +1,7 @@
 bin/*
 dist/*
 *.txt
+!url_proxy.txt
+!blacklist.txt
 *.crt
 *.key
