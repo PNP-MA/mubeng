@@ -16,11 +16,6 @@ import (
 
 // onRequest handles client HTTP request (non-CONNECT).
 func (p *Proxy) onRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
-	if p.Options.Sync {
-		mutex.Lock()
-		defer mutex.Unlock()
-	}
-
 	hostname := extractHostname(req.URL.Host)
 
 	// Enhanced verbose: log every request and DNS lookup
@@ -75,7 +70,8 @@ func (p *Proxy) onRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Reque
 		}
 	}
 
-	// Normal proxy rotation flow
+	// Lock to safely read/write rotate and ok globals
+	mutex.Lock()
 	if (rotate == "") || (ok >= p.Options.Rotate) {
 		if p.Options.Method == "sequent" {
 			rotate = p.Options.ProxyManager.NextProxy()
@@ -91,13 +87,19 @@ func (p *Proxy) onRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Reque
 	} else {
 		ok++
 	}
-
-	rotate = helper.EvalFunc(rotate)
 	currentProxy := rotate
+	mutex.Unlock()
+
+	currentProxy = helper.EvalFunc(currentProxy)
 	resChan := make(chan *http.Response)
 	errChan := make(chan error, 1)
 
 	go func(proxyAddr string) {
+		defer func() {
+			if r := recover(); r != nil {
+				errChan <- fmt.Errorf("panic in proxy goroutine: %v", r)
+			}
+		}()
 		if (req.URL.Scheme != "http") && (req.URL.Scheme != "https") {
 			errChan <- fmt.Errorf("Unsupported protocol scheme: %s", req.URL.Scheme)
 			return
@@ -118,13 +120,13 @@ func (p *Proxy) onRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Reque
 			Transport: tr,
 		}
 
-		client, req = proxy.New(req)
-		client.Timeout = p.Options.Timeout
+		c, req := proxy.New(req)
+		c.Timeout = p.Options.Timeout
 		if p.Options.Verbose {
-			client.Transport = dump.RoundTripper(tr)
+			c.Transport = dump.RoundTripper(tr)
 		}
 
-		resp, err := client.Do(req)
+		resp, err := c.Do(req)
 		if err != nil {
 			errChan <- err
 			return

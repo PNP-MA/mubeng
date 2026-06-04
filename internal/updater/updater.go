@@ -1,7 +1,6 @@
 package updater
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -92,7 +91,7 @@ func doUpdate(ver string) error {
 
 	resp, err := http.Get(binaryURL)
 	if err != nil {
-		return errors.New("check your internet connection")
+		return fmt.Errorf("check your internet connection: %w", err)
 	}
 	defer resp.Body.Close()
 

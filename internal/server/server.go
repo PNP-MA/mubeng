@@ -139,15 +139,34 @@ func dialHTTPProxy(u *url.URL, target string, timeout time.Duration) (net.Conn, 
 	return conn, nil
 }
 
-func dialSOCKSProxy(proxyAddr, network, addr string, _ time.Duration) (net.Conn, error) {
-	return socks.Dial(proxyAddr)(network, addr)
+func dialSOCKSProxy(proxyAddr, network, addr string, timeout time.Duration) (net.Conn, error) {
+	type result struct {
+		conn net.Conn
+		err  error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		conn, err := socks.Dial(proxyAddr)(network, addr)
+		ch <- result{conn, err}
+	}()
+	if timeout > 0 {
+		select {
+		case r := <-ch:
+			return r.conn, r.err
+		case <-time.After(timeout):
+			return nil, fmt.Errorf("SOCKS dial timeout after %v", timeout)
+		}
+	} else {
+		r := <-ch
+		return r.conn, r.err
+	}
 }
 
 // Run proxy server with a user defined listener.
 //
 // An active log have 2 receivers, especially stdout and into file if opt.Output isn't empty.
 // Then close the proxy server if it receives a signal that interrupts the program.
-func Run(opt *common.Options) {
+func Run(opt *common.Options) error {
 	cli := logo.NewReceiver(os.Stderr, "")
 	cli.Color = true
 	cli.Level = logo.DEBUG
@@ -167,7 +186,7 @@ func Run(opt *common.Options) {
 
 	// Load domain blacklist
 	if err := handler.loadBlacklist(opt.Blacklist); err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	handler.HTTPProxy = goproxy.NewProxyHttpServer()
@@ -188,7 +207,7 @@ func Run(opt *common.Options) {
 	if opt.Watch {
 		watcher, err := opt.ProxyManager.Watch()
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 		defer watcher.Close()
 
@@ -201,6 +220,8 @@ func Run(opt *common.Options) {
 
 	log.Infof("[PID: %d] Starting proxy server on %s", os.Getpid(), opt.Address)
 	if err := server.ListenAndServe(); err != nil {
-		log.Fatal(err)
+		return err
 	}
+
+	return nil
 }

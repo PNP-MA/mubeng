@@ -45,6 +45,13 @@ func (p *ProxyManager) RemoveProxy(addr string) {
 			p.Proxies[i] = p.Proxies[len(p.Proxies)-1]
 			p.Proxies = p.Proxies[:len(p.Proxies)-1]
 			p.Length = len(p.Proxies)
+			if p.CurrentIndex >= p.Length {
+				if p.Length > 0 {
+					p.CurrentIndex = p.Length - 1
+				} else {
+					p.CurrentIndex = -1
+				}
+			}
 			return
 		}
 	}
@@ -66,8 +73,8 @@ func New(filename string) (*ProxyManager, error) {
 	}
 	defer file.Close()
 
-	manager.Proxies = []string{}
-	manager.filepath = filename
+	pm := &ProxyManager{CurrentIndex: -1}
+	pm.filepath = filename
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -76,15 +83,15 @@ func New(filename string) (*ProxyManager, error) {
 			_, err = mubeng.Transport(placeholder.ReplaceAllString(proxy, ""))
 			if err == nil {
 				keys[proxy] = true
-				manager.Proxies = append(manager.Proxies, proxy)
+				pm.Proxies = append(pm.Proxies, proxy)
 			}
 		}
 	}
 
-	manager.Length = len(manager.Proxies)
-	if manager.Length < 1 {
-		return manager, fmt.Errorf("open %s: has no valid proxy URLs", filename)
+	pm.Length = len(pm.Proxies)
+	if pm.Length < 1 {
+		return pm, fmt.Errorf("open %s: has no valid proxy URLs", filename)
 	}
 
-	return manager, scanner.Err()
+	return pm, scanner.Err()
 }
