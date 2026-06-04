@@ -1,14 +1,18 @@
 package checker
 
 import (
-	"net/http"
 	"sync"
 )
 
 var (
-	client *http.Client
 	myip   myIP
 	wg     sync.WaitGroup
 
-	endpoint = "https://api.myip.com/"
+	endpoints = []string{
+		"https://api.myip.com/",
+		"https://ip-api.com/json/",
+		"https://api.country.is/",
+	}
+	// endpoint is a backward-compatibility alias for endpoints[0].
+	endpoint = endpoints[0]
 )

@@ -1,9 +1,10 @@
 package checker
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -19,27 +20,37 @@ import (
 // Displays proxies that have died if verbose mode is enabled,
 // or save live proxies into user defined files.
 func Do(opt *common.Options) {
+	// Limit concurrent checks to prevent hitting OS thread limits
+	maxConcurrent := opt.Concurrent
+	if maxConcurrent < 1 {
+		maxConcurrent = 1
+	}
+	sem := make(chan struct{}, maxConcurrent)
+
 	for _, proxy := range opt.ProxyManager.Proxies {
 		wg.Add(1)
+		sem <- struct{}{}
 
 		go func(address string) {
 			defer wg.Done()
+			defer func() { <-sem }()
 
 			addr, err := check(address, opt.Timeout)
-			if len(opt.Countries) > 0 && !isMatchCC(opt.Countries, addr.CC) {
-				return
-			}
-
 			if err != nil {
 				if opt.Verbose {
 					fmt.Printf("[%s] %s\n", aurora.Red("DIED"), address)
 				}
-			} else {
-				fmt.Printf("[%s] [%s] [%s] %s\n", aurora.Green("LIVE"), aurora.Magenta(addr.CC), aurora.Cyan(addr.IP), address)
+				return
+			}
 
-				if opt.Output != "" {
-					fmt.Fprintf(opt.Result, "%s\n", address)
-				}
+			if len(opt.Countries) > 0 && !isMatchCC(opt.Countries, addr.CC) {
+				return
+			}
+
+			fmt.Printf("[%s] [%s] [%s] %s\n", aurora.Green("LIVE"), aurora.Magenta(addr.CC), aurora.Cyan(addr.IP), address)
+
+			if opt.Output != "" {
+				fmt.Fprintf(opt.Result, "%s\n", address)
 			}
 		}(helper.EvalFunc(proxy))
 	}
@@ -62,6 +73,23 @@ func isMatchCC(cc []string, code string) bool {
 }
 
 func check(address string, timeout time.Duration) (myIP, error) {
+	var lastErr error
+	for _, ep := range endpoints {
+		result, err := tryCheck(address, ep, timeout)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		result.normalize()
+		if result.IP != "" && result.CC != "" {
+			return result, nil
+		}
+		lastErr = fmt.Errorf("incomplete response from %s", ep)
+	}
+	return myip, fmt.Errorf("all endpoints failed: %w", lastErr)
+}
+
+func tryCheck(address, endpoint string, timeout time.Duration) (myIP, error) {
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
 		return myip, err
@@ -72,31 +100,40 @@ func check(address string, timeout time.Duration) (myIP, error) {
 		return myip, err
 	}
 
+	// Verify TLS certificates during check to detect MITM proxies.
+	// Transport() globally sets InsecureSkipVerify: true, which lets
+	// MITM proxies with expired/self-signed certs pass the check.
+	tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: false}
+
 	proxy := &mubeng.Proxy{
 		Address:   address,
 		Transport: tr,
 	}
 
-	client, req = proxy.New(req)
-	client.Timeout = timeout
+	cl, req := proxy.New(req)
+	cl.Timeout = timeout
 	req.Header.Add("Connection", "close")
 
-	resp, err := client.Do(req)
+	resp, err := cl.Do(req)
 	if err != nil {
 		return myip, err
 	}
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return myip, err
-	}
-
-	err = json.Unmarshal([]byte(body), &myip)
-	if err != nil {
-		return myip, err
-	}
-
 	defer resp.Body.Close()
 
-	return myip, nil
+	if resp.StatusCode != http.StatusOK {
+		return myip, fmt.Errorf("unexpected status: %d from %s", resp.StatusCode, endpoint)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return myip, err
+	}
+
+	var result myIP
+	err = json.Unmarshal(body, &result)
+	if err != nil {
+		return myip, err
+	}
+
+	return result, nil
 }

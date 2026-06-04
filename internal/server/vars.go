@@ -19,4 +19,10 @@ var (
 	ok      = 1
 
 	mutex = sync.Mutex{}
+
+	// dialTracker prevents multiple goroutines from dialing the same proxy
+	// concurrently. Keys are proxy addresses; a loaded entry means another
+	// goroutine is currently testing that proxy. Avoids burning N×the dial
+	// timeout on a single dead proxy under concurrent load.
+	dialTracker sync.Map
 )

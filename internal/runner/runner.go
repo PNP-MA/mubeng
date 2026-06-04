@@ -18,7 +18,7 @@ func New(opt *common.Options) error {
 			return daemon.New(opt)
 		}
 
-		server.Run(opt)
+		return server.Run(opt)
 	case opt.Check:
 		checker.Do(opt)
 
