@@ -32,6 +32,18 @@ func (p *ProxyManager) Len() int {
 	return p.Length
 }
 
+// All returns a snapshot copy of all proxies in the pool (thread-safe).
+func (p *ProxyManager) All() []string {
+	if p == nil {
+		return nil
+	}
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	result := make([]string, len(p.Proxies))
+	copy(result, p.Proxies)
+	return result
+}
+
 // RemoveProxy removes a proxy address from the pool (thread-safe).
 func (p *ProxyManager) RemoveProxy(addr string) {
 	if p == nil {

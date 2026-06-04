@@ -2,6 +2,7 @@ package server
 
 import (
 	"bufio"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"net"
@@ -258,6 +259,14 @@ func Run(opt *common.Options) error {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
 	go interrupt(stop)
+
+	// Start background pool cleaner
+	if opt.ProxyManager != nil && opt.ProxyManager.Len() > 0 {
+		cleanerCtx, cleanerStop := context.WithCancel(context.Background())
+		defer cleanerStop()
+		cleaner := NewPoolCleaner(opt.ProxyManager, 5*time.Second, 60*time.Second, 10)
+		go cleaner.Run(cleanerCtx)
+	}
 
 	log.Infof("[PID: %d] Starting proxy server on %s", os.Getpid(), opt.Address)
 	if err := server.ListenAndServe(); err != nil {
