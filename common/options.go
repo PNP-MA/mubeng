@@ -13,19 +13,20 @@ type Options struct {
 	Result       *os.File
 	Timeout      time.Duration
 
-	Address   string
-	Auth      string
-	Blacklist string
-	CC        string
-	Check     bool
-	Countries []string
-	Daemon    bool
-	Download  bool
-	File      string
-	Method    string
-	Output    string
-	Rotate    int
-	Sync      bool
-	Verbose   bool
-	Watch     bool
+	Address    string
+	Auth       string
+	Blacklist  string
+	CC         string
+	Check      bool
+	Concurrent int
+	Countries  []string
+	Daemon     bool
+	Download   bool
+	File       string
+	Method     string
+	Output     string
+	Rotate     int
+	Sync       bool
+	Verbose    bool
+	Watch      bool
 }

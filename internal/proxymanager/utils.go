@@ -8,18 +8,22 @@ import (
 
 // NextProxy will navigate the next proxy to use
 func (p *ProxyManager) NextProxy() string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	p.CurrentIndex++
 	if p.CurrentIndex > len(p.Proxies)-1 {
 		p.CurrentIndex = 0
 	}
 
-	proxy := p.Proxies[p.CurrentIndex]
-
-	return proxy
+	return p.Proxies[p.CurrentIndex]
 }
 
 // RandomProxy will choose a proxy randomly from the list
 func (p *ProxyManager) RandomProxy() string {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
 	return p.Proxies[rand.Intn(len(p.Proxies))]
 }
 

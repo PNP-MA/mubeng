@@ -49,8 +49,8 @@ func connectDial(network, addr string) (net.Conn, error) {
 		log.Warnf("DIRECT connection failed for blacklisted %s: %s — falling back to proxy pool", addr, err)
 	}
 
-	if handler.Options != nil && handler.Options.ProxyManager != nil && handler.Options.ProxyManager.Length > 0 {
-		maxAttempts := handler.Options.ProxyManager.Length
+	if handler.Options != nil && handler.Options.ProxyManager != nil && handler.Options.ProxyManager.Len() > 0 {
+		maxAttempts := handler.Options.ProxyManager.Len()
 		if maxAttempts > 3 {
 			maxAttempts = 3
 		}
@@ -76,7 +76,17 @@ func connectDial(network, addr string) (net.Conn, error) {
 				if handler.Options.Verbose {
 					log.Infof("%s CONNECT %s -> via %s", "proxy", addr, proxyAddr)
 				}
-				return conn, nil
+				// Wrap with MonitoredConn to auto-remove bad proxies on transport errors
+				return &MonitoredConn{
+					Conn:      conn,
+					proxyAddr: proxyAddr,
+					onRemove: func(p string) {
+						if handler.Options.ProxyManager != nil {
+							handler.Options.ProxyManager.RemoveProxy(p)
+							log.Warnf("Self-heal: removed bad proxy %s from pool", p)
+						}
+					},
+				}, nil
 			}
 		}
 	}

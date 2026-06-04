@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"sync"
 	"time"
 
 	"ktbs.dev/mubeng/pkg/helper"
@@ -13,10 +14,40 @@ import (
 
 // ProxyManager defines the proxy list and current proxy position
 type ProxyManager struct {
+	mu sync.RWMutex
+
 	CurrentIndex int
 	filepath     string
 	Length       int
 	Proxies      []string
+}
+
+// Len returns the current number of proxies in the pool (thread-safe).
+func (p *ProxyManager) Len() int {
+	if p == nil {
+		return 0
+	}
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.Length
+}
+
+// RemoveProxy removes a proxy address from the pool (thread-safe).
+func (p *ProxyManager) RemoveProxy(addr string) {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for i, proxy := range p.Proxies {
+		if proxy == addr {
+			// Swap with last element, then truncate
+			p.Proxies[i] = p.Proxies[len(p.Proxies)-1]
+			p.Proxies = p.Proxies[:len(p.Proxies)-1]
+			p.Length = len(p.Proxies)
+			return
+		}
+	}
 }
 
 func init() {

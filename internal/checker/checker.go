@@ -1,6 +1,7 @@
 package checker
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -19,11 +20,20 @@ import (
 // Displays proxies that have died if verbose mode is enabled,
 // or save live proxies into user defined files.
 func Do(opt *common.Options) {
+	// Limit concurrent checks to prevent hitting OS thread limits
+	maxConcurrent := opt.Concurrent
+	if maxConcurrent < 1 {
+		maxConcurrent = 1
+	}
+	sem := make(chan struct{}, maxConcurrent)
+
 	for _, proxy := range opt.ProxyManager.Proxies {
 		wg.Add(1)
+		sem <- struct{}{}
 
 		go func(address string) {
 			defer wg.Done()
+			defer func() { <-sem }()
 
 			addr, err := check(address, opt.Timeout)
 			if len(opt.Countries) > 0 && !isMatchCC(opt.Countries, addr.CC) {
@@ -71,6 +81,11 @@ func check(address string, timeout time.Duration) (myIP, error) {
 	if err != nil {
 		return myip, err
 	}
+
+	// Verify TLS certificates during check to detect MITM proxies.
+	// Transport() globally sets InsecureSkipVerify: true, which lets
+	// MITM proxies with expired/self-signed certs pass the check.
+	tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: false}
 
 	proxy := &mubeng.Proxy{
 		Address:   address,

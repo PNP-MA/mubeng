@@ -93,27 +93,28 @@ func (p *Proxy) onRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Reque
 	}
 
 	rotate = helper.EvalFunc(rotate)
+	currentProxy := rotate
 	resChan := make(chan *http.Response)
 	errChan := make(chan error, 1)
 
-	go func() {
+	go func(proxyAddr string) {
 		if (req.URL.Scheme != "http") && (req.URL.Scheme != "https") {
 			errChan <- fmt.Errorf("Unsupported protocol scheme: %s", req.URL.Scheme)
 			return
 		}
 
 		if p.Options.Verbose {
-			log.Debugf("%s -> %s via %s", req.RemoteAddr, req.URL, rotate)
+			log.Debugf("%s -> %s via %s", req.RemoteAddr, req.URL, proxyAddr)
 		}
 
-		tr, err := mubeng.Transport(rotate)
+		tr, err := mubeng.Transport(proxyAddr)
 		if err != nil {
 			errChan <- err
 			return
 		}
 
 		proxy := &mubeng.Proxy{
-			Address:   rotate,
+			Address:   proxyAddr,
 			Transport: tr,
 		}
 
@@ -139,11 +140,16 @@ func (p *Proxy) onRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Reque
 
 		resp.Body = ioutil.NopCloser(bytes.NewBuffer(buf))
 		resChan <- resp
-	}()
+	}(currentProxy)
 
 	select {
 	case err := <-errChan:
 		log.Errorf("%s %s %s", req.RemoteAddr, req.Method, err)
+		// Self-healing: remove bad proxy on HTTP request failure
+		if currentProxy != "" && p.Options.ProxyManager != nil {
+			p.Options.ProxyManager.RemoveProxy(currentProxy)
+			log.Warnf("Self-heal: removed bad proxy %s from pool", currentProxy)
+		}
 		return req, goproxy.NewResponse(req, mime, http.StatusBadGateway, "Proxy server error")
 	case resp := <-resChan:
 		log.Debug(req.RemoteAddr, " ", resp.Status)
